@@ -40,11 +40,16 @@ export default function InteractiveMap({ days = [], currency = '₹' }) {
       attributionControl: false
     });
 
-    // Executive White / Light Theme Tiles: CartoDB Positron
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-    }).addTo(initialMap);
+    // High-definition Tiles: Mapbox (if VITE_MAPBOX_TOKEN provided) or Free CartoDB Positron (Zero-Key)
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    const tileUrl = mapboxToken
+      ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    const tileOptions = mapboxToken
+      ? { maxZoom: 19, tileSize: 512, zoomOffset: -1 }
+      : { maxZoom: 19, subdomains: 'abcd' };
+
+    L.tileLayer(tileUrl, tileOptions).addTo(initialMap);
 
     mapInstanceRef.current = initialMap;
 

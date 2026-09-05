@@ -160,7 +160,6 @@ export default function App() {
       
       {/* Sticky Header */}
       <Header
-        systemStatus={systemStatus}
         onLoadDemo={loadDemoTrip}
         onOpenNewTrip={() => setNewTripModalOpen(true)}
         loading={loading || replanning}
