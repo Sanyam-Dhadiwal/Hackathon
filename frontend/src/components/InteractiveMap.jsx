@@ -17,6 +17,20 @@ export default function InteractiveMap({ days = [], currency = '₹' }) {
   const polylinesRef = useRef([]);
   const [selectedDay, setSelectedDay] = useState('ALL');
 
+  // Determine destination center from activities
+  const getDestinationCenter = () => {
+    if (days && days.length > 0) {
+      for (const day of days) {
+        for (const act of day.activities || []) {
+          if (act.latitude && act.longitude) {
+            return [act.latitude, act.longitude];
+          }
+        }
+      }
+    }
+    return [15.4989, 73.8278]; // fallback
+  };
+
   // Safely initialize map
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -32,10 +46,12 @@ export default function InteractiveMap({ days = [], currency = '₹' }) {
       mapContainerRef.current._leaflet_id = null;
     }
 
-    // Initialize Leaflet map
+    const centerCoords = getDestinationCenter();
+
+    // Initialize Leaflet map centered dynamically
     const initialMap = L.map(mapContainerRef.current, {
-      center: [15.4989, 73.8278],
-      zoom: 11,
+      center: centerCoords,
+      zoom: 12,
       zoomControl: true,
       attributionControl: false
     });

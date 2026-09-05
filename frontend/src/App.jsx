@@ -11,8 +11,9 @@ import PackingChecklist from './components/PackingChecklist';
 import NewTripModal from './components/NewTripModal';
 import MyTripsModal from './components/MyTripsModal';
 import AuthModal from './components/AuthModal';
+import ChangeDestinationModal from './components/ChangeDestinationModal';
 
-import { Calendar, Map, Luggage, Compass, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Calendar, Map, Luggage, Compass, MapPin } from 'lucide-react';
 
 function TravelPlannerContent() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -31,6 +32,7 @@ function TravelPlannerContent() {
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
   const [myTripsModalOpen, setMyTripsModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [changeDestModalOpen, setChangeDestModalOpen] = useState(false);
 
   // 1. Fetch system status
   const fetchSystemStatus = async () => {
@@ -203,6 +205,50 @@ function TravelPlannerContent() {
     }
   };
 
+  const handleChangeDestination = async (newDestination) => {
+    if (!activeTrip) return;
+    setLoading(true);
+    try {
+      const res = await apiClient.post(`/api/trips/${activeTrip.id}/change-destination`, {
+        destination: newDestination
+      });
+      if (res.ok) {
+        const updatedTrip = await res.json();
+        setActiveTrip(updatedTrip);
+        setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+        setChangeDestModalOpen(false);
+        await fetchBudgetAnalysis(updatedTrip.id);
+      }
+    } catch (err) {
+      console.error('Error changing destination:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectTrip = async (tripId) => {
+    if (!tripId || tripId === activeTrip?.id) return;
+    const found = trips.find((t) => t.id === tripId);
+    if (found) {
+      setActiveTrip(found);
+      await fetchBudgetAnalysis(found.id);
+    } else {
+      setLoading(true);
+      try {
+        const res = await apiClient.get(`/api/trips/${tripId}`);
+        if (res.ok) {
+          const trip = await res.json();
+          setActiveTrip(trip);
+          await fetchBudgetAnalysis(trip.id);
+        }
+      } catch (err) {
+        console.error('Error selecting trip:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // Loading state while restoring session from HttpOnly cookie
   if (isLoading) {
     return (
@@ -273,6 +319,57 @@ function TravelPlannerContent() {
                   {activeTrip.title}
                 </h1>
                 
+                {/* Destination Controls & Trip Switcher */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '6px 0 10px 0' }}>
+                  <button
+                    onClick={() => setChangeDestModalOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 12px',
+                      borderRadius: 8,
+                      background: '#eef2ff',
+                      border: '1.5px solid #c7d2fe',
+                      color: '#4f46e5',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Change destination and update places immediately"
+                  >
+                    <MapPin style={{ width: 14, height: 14 }} />
+                    <span>Change Destination</span>
+                  </button>
+
+                  {trips.length > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Switch:</span>
+                      <select
+                        value={activeTrip.id}
+                        onChange={(e) => handleSelectTrip(e.target.value)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          color: '#0f172a',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {trips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.destination} ({t.duration_days}D • {t.currency}{t.total_budget?.toLocaleString()})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="hero-chips">
                   {activeTrip.interests.map((interest) => (
                     <span key={interest} className="badge badge-primary">
@@ -406,6 +503,15 @@ function TravelPlannerContent() {
           fetchBudgetAnalysis(selected.id);
         }}
         onOpenNewTrip={() => setNewTripModalOpen(true)}
+      />
+
+      {/* Change Destination Modal */}
+      <ChangeDestinationModal
+        isOpen={changeDestModalOpen}
+        onClose={() => setChangeDestModalOpen(false)}
+        currentDestination={activeTrip?.destination}
+        onChangeDestination={handleChangeDestination}
+        loading={loading}
       />
 
     </div>
