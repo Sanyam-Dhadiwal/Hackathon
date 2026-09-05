@@ -28,6 +28,11 @@ class TripCreateRequest(BaseModel):
     travel_pace: str = Field(default="Moderate") # Relaxed, Moderate, Fast-paced
     special_constraints: Optional[str] = Field(default="Avoid overly packed days; preserve cultural visits")
 
+class ChangeDestinationRequest(BaseModel):
+    destination: str = Field(..., example="Paris")
+    total_budget: Optional[float] = None
+    currency: Optional[str] = None
+
 # Activity Schema
 class Activity(BaseModel):
     id: str = Field(default_factory=generate_id)

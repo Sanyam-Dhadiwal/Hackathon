@@ -8,8 +8,9 @@ import AdaptiveReplanModal from './components/AdaptiveReplanModal';
 import PackingChecklist from './components/PackingChecklist';
 import NewTripModal from './components/NewTripModal';
 import MongoModal from './components/MongoModal';
+import ChangeDestinationModal from './components/ChangeDestinationModal';
 
-import { Calendar, Map, Luggage } from 'lucide-react';
+import { Calendar, Map, Luggage, MapPin } from 'lucide-react';
 
 export default function App() {
   const [activeTrip, setActiveTrip] = useState(null);
@@ -24,11 +25,26 @@ export default function App() {
   const [latestReplanResult, setLatestReplanResult] = useState(null);
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
   const [mongoModalOpen, setMongoModalOpen] = useState(false);
+  const [changeDestModalOpen, setChangeDestModalOpen] = useState(false);
+  const [allTrips, setAllTrips] = useState([]);
 
   useEffect(() => {
     fetchSystemStatus();
     loadDemoTrip();
+    fetchTripsList();
   }, []);
+
+  const fetchTripsList = async () => {
+    try {
+      const res = await fetch('/api/trips');
+      if (res.ok) {
+        const data = await res.json();
+        setAllTrips(data);
+      }
+    } catch (err) {
+      console.error('Error fetching trips list:', err);
+    }
+  };
 
   const fetchSystemStatus = async () => {
     try {
@@ -50,6 +66,7 @@ export default function App() {
         const trip = await res.json();
         setActiveTrip(trip);
         await fetchBudgetAnalysis(trip.id);
+        await fetchTripsList();
       }
     } catch (err) {
       console.error('Error loading demo trip:', err);
@@ -149,9 +166,50 @@ export default function App() {
         setActiveTrip(trip);
         setNewTripModalOpen(false);
         await fetchBudgetAnalysis(trip.id);
+        await fetchTripsList();
       }
     } catch (err) {
       console.error('Error creating trip:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeDestination = async (newDestination) => {
+    if (!activeTrip) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${activeTrip.id}/change-destination`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination: newDestination })
+      });
+      if (res.ok) {
+        const updatedTrip = await res.json();
+        setActiveTrip(updatedTrip);
+        setChangeDestModalOpen(false);
+        await fetchBudgetAnalysis(updatedTrip.id);
+        await fetchTripsList();
+      }
+    } catch (err) {
+      console.error('Error changing destination:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectTrip = async (tripId) => {
+    if (!tripId || tripId === activeTrip?.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/trips/${tripId}`);
+      if (res.ok) {
+        const trip = await res.json();
+        setActiveTrip(trip);
+        await fetchBudgetAnalysis(trip.id);
+      }
+    } catch (err) {
+      console.error('Error selecting trip:', err);
     } finally {
       setLoading(false);
     }
@@ -189,6 +247,57 @@ export default function App() {
                   {activeTrip.title}
                 </h1>
                 
+                {/* Destination Controls & Trip Switcher */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '6px 0 10px 0' }}>
+                  <button
+                    onClick={() => setChangeDestModalOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 12px',
+                      borderRadius: 8,
+                      background: '#eef2ff',
+                      border: '1.5px solid #c7d2fe',
+                      color: '#4f46e5',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Change destination and update places immediately"
+                  >
+                    <MapPin style={{ width: 14, height: 14 }} />
+                    <span>Change Destination</span>
+                  </button>
+
+                  {allTrips.length > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Switch:</span>
+                      <select
+                        value={activeTrip.id}
+                        onChange={(e) => handleSelectTrip(e.target.value)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 8,
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          color: '#0f172a',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {allTrips.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.destination} ({t.duration_days}D • {t.currency}{t.total_budget?.toLocaleString()})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div className="hero-chips">
                   {activeTrip.interests.map((interest) => (
                     <span key={interest} className="badge badge-primary">
@@ -397,6 +506,15 @@ export default function App() {
         onClose={() => setMongoModalOpen(false)}
         currentStatus={systemStatus}
         onConnected={fetchSystemStatus}
+      />
+
+      {/* Change Destination Modal */}
+      <ChangeDestinationModal
+        isOpen={changeDestModalOpen}
+        onClose={() => setChangeDestModalOpen(false)}
+        currentDestination={activeTrip?.destination}
+        onChangeDestination={handleChangeDestination}
+        loading={loading}
       />
 
     </div>

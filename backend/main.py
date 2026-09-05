@@ -10,7 +10,7 @@ from backend.database import get_db, get_db_status, reconnect_db
 from backend.models import (
     TripCreateRequest, TripDocument, ExpenseLogRequest,
     ExpenseRecord, PackingItemToggleRequest, ReplanResult,
-    TripHealthScore
+    TripHealthScore, ChangeDestinationRequest
 )
 from pydantic import BaseModel
 from backend.services.llm_provider import get_llm_provider
@@ -150,6 +150,64 @@ def get_trip(trip_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
     return TripDocument(**doc)
+
+@app.post("/api/trips/{trip_id}/change-destination", response_model=TripDocument)
+def change_trip_destination(trip_id: str, req: ChangeDestinationRequest):
+    """
+    Dynamically change the destination of an active trip:
+    - Regenerates places, coordinates, timings, and activities for the new destination
+    - Regenerates climate-tailored packing checklist
+    - Recalculates Trip Health Score
+    - Updates trip title while preserving duration, travelers, and user preferences
+    """
+    doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    trip = TripDocument(**doc)
+    
+    new_dest = req.destination.strip()
+    if not new_dest:
+        raise HTTPException(status_code=400, detail="Destination cannot be empty")
+        
+    provider = get_llm_provider()
+    
+    # Update destination and budget if provided
+    trip.destination = new_dest
+    trip.title = f"{trip.duration_days}-Day {new_dest} Adventure"
+    if req.total_budget and req.total_budget > 0:
+        trip.total_budget = req.total_budget
+    if req.currency:
+        trip.currency = req.currency
+
+    # Synthesize new itinerary for this destination
+    create_req = TripCreateRequest(
+        destination=trip.destination,
+        start_date=trip.start_date,
+        end_date=trip.end_date,
+        duration_days=trip.duration_days,
+        travelers=trip.travelers,
+        total_budget=trip.total_budget,
+        currency=trip.currency,
+        interests=trip.interests,
+        priority_weights=trip.priority_weights,
+        travel_style=trip.travel_style,
+        travel_pace=trip.travel_pace,
+        special_constraints=trip.special_constraints
+    )
+    
+    new_days = provider.generate_itinerary(create_req)
+    trip.days = new_days
+    trip.expenses = []  # Reset expenses for new destination
+    trip.replan_history = []
+    
+    # Regenerate packing list & health score
+    trip.packing_checklist = provider.generate_packing_list(trip)
+    trip.health_score = TripHealthScoreEngine.calculate_health_score(trip)
+    trip.updated_at = datetime.utcnow().isoformat()
+    
+    db.trips.update_one({"id": trip.id}, {"$set": trip.dict()})
+    logger.info(f"Updated destination for trip {trip_id} to '{new_dest}' with {len(new_days)} days")
+    return trip
 
 @app.post("/api/trips/{trip_id}/expenses")
 def record_actual_expense(trip_id: str, expense_req: ExpenseLogRequest):

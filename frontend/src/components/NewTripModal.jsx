@@ -101,6 +101,28 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                   outline: 'none'
                 }}
               />
+              {/* Quick Destination Suggestions */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {['Goa', 'Paris', 'Tokyo', 'Jaipur', 'Manali', 'Kerala', 'Dubai'].map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => setDestination(city)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: destination.toLowerCase() === city.toLowerCase() ? '1px solid #4f46e5' : '1px solid #e2e8f0',
+                      background: destination.toLowerCase() === city.toLowerCase() ? '#eef2ff' : '#ffffff',
+                      color: destination.toLowerCase() === city.toLowerCase() ? '#4f46e5' : '#64748b'
+                    }}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
