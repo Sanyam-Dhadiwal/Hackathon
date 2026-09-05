@@ -42,7 +42,7 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
-      background: 'rgba(0,0,0,0.85)',
+      background: 'rgba(15, 23, 42, 0.65)',
       backdropFilter: 'blur(8px)',
       display: 'flex',
       alignItems: 'center',
@@ -50,30 +50,30 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
       padding: 20
     }}>
       <div style={{
-        maxWidth: 560,
+        maxWidth: 540,
         width: '100%',
-        background: '#0e1526',
-        border: '1px solid rgba(99, 102, 241, 0.3)',
+        background: '#ffffff',
+        border: '1px solid #cbd5e1',
         borderRadius: 22,
-        padding: 30,
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)',
+        padding: 32,
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         display: 'flex',
         flexDirection: 'column',
         gap: 20
       }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ padding: 8, borderRadius: 12, background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
+            <div style={{ padding: 8, borderRadius: 12, background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
               <Compass style={{ width: 20, height: 20 }} />
             </div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Create Personalized Trip</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Create Personalized Trip</h3>
           </div>
           <button 
             onClick={onClose} 
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 22, cursor: 'pointer' }}
           >
-            ×
+            <X style={{ width: 20, height: 20 }} />
           </button>
         </div>
 
@@ -81,7 +81,7 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Destination
               </label>
               <input
@@ -94,16 +94,16 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                   width: '100%',
                   padding: '10px 14px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 13,
                   outline: 'none'
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Total Budget (₹)
               </label>
               <input
@@ -117,9 +117,9 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                   width: '100%',
                   padding: '10px 14px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 13,
                   fontFamily: 'monospace',
                   outline: 'none'
@@ -130,7 +130,7 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Days
               </label>
               <input
@@ -141,17 +141,17 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                 onChange={(e) => setDurationDays(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '9px 12px',
+                  padding: '9px 10px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 13
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Travelers
               </label>
               <input
@@ -161,17 +161,17 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                 onChange={(e) => setTravelers(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '9px 12px',
+                  padding: '9px 10px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 13
                 }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Style
               </label>
               <select
@@ -179,11 +179,11 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                 onChange={(e) => setTravelStyle(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '9px 10px',
+                  padding: '9px 8px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 12
                 }}
               >
@@ -194,7 +194,7 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
                 Pace
               </label>
               <select
@@ -202,11 +202,11 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                 onChange={(e) => setTravelPace(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '9px 10px',
+                  padding: '9px 8px',
                   borderRadius: 10,
-                  background: '#090e1a',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: '#fff',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  color: '#0f172a',
                   fontSize: 12
                 }}
               >
@@ -218,7 +218,7 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 6 }}>
               Special Constraints & Preferences
             </label>
             <textarea
@@ -230,9 +230,9 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
                 width: '100%',
                 padding: '10px 14px',
                 borderRadius: 10,
-                background: '#090e1a',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: '#fff',
+                background: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                color: '#0f172a',
                 fontSize: 13,
                 outline: 'none',
                 resize: 'none'
@@ -240,11 +240,11 @@ export default function NewTripModal({ isOpen, onClose, onCreateTrip, loading })
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
             <button
               type="button"
               onClick={onClose}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               Cancel
             </button>
