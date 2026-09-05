@@ -29,18 +29,14 @@ def test_complete_auth_and_ownership():
     })
     assert res_reg_a.status_code == 201, f"Registration failed: {res_reg_a.text}"
     data_reg_a = res_reg_a.json()
-    assert "access_token" in data_reg_a
     assert data_reg_a["user"]["name"] == "Alice Traveler"
     assert data_reg_a["user"]["email"] == "alice@example.com"
     assert "password" not in data_reg_a["user"]
     assert "password_hash" not in data_reg_a["user"]
-    
-    # Check refresh_token cookie was set
-    cookies = res_reg_a.cookies
-    assert "refresh_token" in cookies, "refresh_token cookie was not set on register"
-    token_a = data_reg_a["access_token"]
     user_a_id = data_reg_a["user"]["id"]
-    print(" User A registered successfully. Access token received. HttpOnly cookie set.")
+    # Mark email verified for testing login
+    db.users.update_one({"id": user_a_id}, {"$set": {"email_verified": True}})
+    print(" User A registered successfully (pending verification). Marked verified for test.")
 
     # 3. Verify password hashing in DB
     print("\n[TEST 2] Verifying password is cryptographically hashed in DB...")
@@ -116,9 +112,15 @@ def test_complete_auth_and_ownership():
         "password": "BobPassword456!"
     })
     assert res_reg_b.status_code == 201
-    token_b = res_reg_b.json()["access_token"]
     user_b_id = res_reg_b.json()["user"]["id"]
-    print(f" User B registered (ID: {user_b_id}).")
+    db.users.update_one({"id": user_b_id}, {"$set": {"email_verified": True}})
+    res_login_b = client.post("/auth/login", json={
+        "email": "bob@example.com",
+        "password": "BobPassword456!"
+    })
+    assert res_login_b.status_code == 200
+    token_b = res_login_b.json()["access_token"]
+    print(f" User B registered and logged in (ID: {user_b_id}).")
 
     # 11. User A creates a trip
     print("\n[TEST 10] User A creates a Trip (Goa)...")

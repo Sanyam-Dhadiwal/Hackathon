@@ -62,3 +62,9 @@ def get_db_status():
 
 def reconnect_db(new_uri: str):
     return db_manager.reconnect(new_uri)
+
+class DBProxy:
+    def __getattr__(self, item):
+        return getattr(get_db(), item)
+
+db = DBProxy()

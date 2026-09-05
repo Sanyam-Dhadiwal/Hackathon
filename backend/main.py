@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 
 from backend.config import settings
-from backend.database import get_db, get_db_status, reconnect_db
+from backend.database import get_db, get_db_status, reconnect_db, db
 from backend.models import (
     TripCreateRequest, TripDocument, ExpenseLogRequest,
     ExpenseRecord, PackingItemToggleRequest, ReplanResult,
@@ -17,6 +17,7 @@ from backend.services.llm_provider import get_llm_provider
 from backend.services.health_engine import TripHealthScoreEngine
 from backend.services.budget_engine import BudgetEngine
 from backend.services.replanner import AdaptiveReplanner
+from backend.routes.auth import router as auth_router, get_current_user
 
 logger = logging.getLogger("travel_planner.api")
 logging.basicConfig(level=logging.INFO)
