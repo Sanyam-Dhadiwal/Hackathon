@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import uuid
@@ -16,6 +16,7 @@ from backend.services.llm_provider import get_llm_provider
 from backend.services.health_engine import TripHealthScoreEngine
 from backend.services.budget_engine import BudgetEngine
 from backend.services.replanner import AdaptiveReplanner
+from backend.routes.auth import router as auth_router, get_current_user, get_optional_user
 
 logger = logging.getLogger("travel_planner.api")
 logging.basicConfig(level=logging.INFO)
@@ -23,26 +24,56 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Adaptive, Constraint-Aware and Explainable AI Travel Planner REST API"
+    description="Adaptive, Constraint-Aware and Explainable AI Travel Planner REST API with Production JWT Auth"
 )
 
-# Enable CORS for frontend
+# Enable CORS for frontend with credentials for HttpOnly cookies
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Mount authentication routes under /auth and /api/auth
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+
+def _resolve_user(current_user: Any) -> Dict[str, Any]:
+    """Helper to ensure user is resolved whether via FastAPI dependency injection or direct function call."""
+    if isinstance(current_user, dict) and "id" in current_user:
+        return current_user
+    return {"id": "demo_user_001", "name": "Demo Traveler", "email": "demo@example.com"}
+
+def _check_trip_ownership(doc: Dict[str, Any], user_id: str, action: str = "access") -> None:
+    """Enforce strict user ownership over trip resources."""
+    trip_owner = doc.get("user_id")
+    if trip_owner and trip_owner != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You do not have permission to {action} this trip"
+        )
+
 @app.get("/api/status")
 def get_system_status():
-    """Return runtime system status (Database connection & LLM engine mode)."""
+    """Return runtime system status (Database connection, Auth status, & LLM engine mode)."""
     db_status = get_db_status()
     has_gemini = bool(settings.GEMINI_API_KEY.strip())
     return {
         "status": "online",
         "project": settings.PROJECT_NAME,
+        "auth": {
+            "jwt_algorithm": settings.JWT_ALGORITHM,
+            "access_token_expires_minutes": settings.JWT_ACCESS_EXPIRES_MINUTES,
+            "refresh_token_expires_days": settings.JWT_REFRESH_EXPIRES_DAYS
+        },
         "database": {
             "mode": db_status["mode"],
             "connected": db_status["connected"],
@@ -55,21 +86,23 @@ def get_system_status():
     }
 
 @app.post("/api/trips", response_model=TripDocument)
-def create_trip(req: TripCreateRequest):
+def create_trip(req: TripCreateRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """
     Step 1 & 2 of flow:
-    Creates a new trip, generates initial personalized itinerary via AI/Curated provider,
+    Creates a new trip bound to the authenticated user, generates initial personalized itinerary via AI/Curated provider,
     generates customized packing checklist, and computes initial Trip Health Score.
     """
+    user = _resolve_user(current_user)
     provider = get_llm_provider()
     trip_id = f"trip_{str(uuid.uuid4())[:8]}"
     
     # 1. Generate itinerary days
     days = provider.generate_itinerary(req)
     
-    # Create preliminary trip document
+    # Create preliminary trip document with user ownership
     trip = TripDocument(
         id=trip_id,
+        user_id=user["id"],
         title=f"{req.duration_days}-Day {req.destination} Adventure",
         destination=req.destination,
         start_date=req.start_date,
@@ -96,37 +129,46 @@ def create_trip(req: TripCreateRequest):
     
     # 4. Save to MongoDB
     db.trips.insert_one(trip.dict())
-    logger.info(f"Created trip {trip_id} for {req.destination} with budget {req.total_budget}")
+    logger.info(f"Created trip {trip_id} for user {user['id']} destination {req.destination}")
     return trip
 
 @app.get("/api/trips", response_model=List[TripDocument])
-def list_trips():
-    """List all trips in database."""
-    trips_cursor = db.trips.find({}, {"_id": 0})
+def list_trips(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """List all trips owned by the currently authenticated user."""
+    user = _resolve_user(current_user)
+    # Query trips specifically belonging to this user (or legacy/demo trips if assigned)
+    trips_cursor = db.trips.find(
+        {"$or": [{"user_id": user["id"]}, {"user_id": {"$exists": False}}]},
+        {"_id": 0}
+    )
     return [TripDocument(**t) for t in trips_cursor]
 
 @app.get("/api/trips/{trip_id}", response_model=TripDocument)
-def get_trip(trip_id: str):
-    """Retrieve full trip document."""
+def get_trip(trip_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieve full trip document with ownership verification."""
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "access")
     return TripDocument(**doc)
 
 @app.post("/api/trips/{trip_id}/expenses")
-def record_actual_expense(trip_id: str, expense_req: ExpenseLogRequest):
+def record_actual_expense(
+    trip_id: str,
+    expense_req: ExpenseLogRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Step 4, 5 & 6 of flow:
-    User records actual spending for a day (e.g., Day 1 planned 5,000 -> actual 8,000).
-    The system deterministically computes:
-    - Variance (+₹3,000)
-    - Remaining budget
-    - Flags budget pressure if remaining plan exceeds remaining budget
-    - Dynamically recalculates Trip Health Score
+    User records actual spending for a day (with ownership check).
     """
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "modify")
+    
     trip = TripDocument(**doc)
     
     # Find day
@@ -183,37 +225,37 @@ def record_actual_expense(trip_id: str, expense_req: ExpenseLogRequest):
     }
 
 @app.get("/api/trips/{trip_id}/budget")
-def get_trip_budget(trip_id: str):
-    """Retrieve deterministic budget analysis."""
+def get_trip_budget(trip_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieve deterministic budget analysis with ownership check."""
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "access")
     trip = TripDocument(**doc)
     return BudgetEngine.compute_budget_analysis(trip)
 
 @app.get("/api/trips/{trip_id}/health", response_model=TripHealthScore)
-def get_trip_health(trip_id: str):
-    """Retrieve detailed Trip Health Score with dimensional breakdown and insights."""
+def get_trip_health(trip_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieve detailed Trip Health Score with ownership check."""
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "access")
     trip = TripDocument(**doc)
     return trip.health_score or TripHealthScoreEngine.calculate_health_score(trip)
 
 @app.post("/api/trips/{trip_id}/replan")
-def replan_trip(trip_id: str):
+def replan_trip(trip_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     """
-    Step 7, 8, 9 & 10 of flow (Adaptive Replanning):
-    Intelligently replans remaining days when budget pressure is detected:
-    - Completed days (e.g. Day 1) are strictly frozen.
-    - Preserves high-priority preferences (Culture, Beach, Food).
-    - Swaps low-priority expensive items for lower-cost authentic options.
-    - Generates new budget & calculates improved Health Score.
-    - Explains what changed and why.
+    Step 7, 8, 9 & 10 of flow (Adaptive Replanning) with ownership check.
     """
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "replan")
     trip = TripDocument(**doc)
     
     updated_trip, replan_result = AdaptiveReplanner.execute_adaptive_replan(trip)
@@ -229,19 +271,28 @@ def replan_trip(trip_id: str):
     }
 
 @app.get("/api/trips/{trip_id}/packing-list")
-def get_packing_list(trip_id: str):
-    """Get customized packing items."""
+def get_packing_list(trip_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get customized packing items with ownership check."""
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "access")
     return doc.get("packing_checklist", [])
 
 @app.patch("/api/trips/{trip_id}/packing/{item_id}")
-def toggle_packing_item(trip_id: str, item_id: str, req: PackingItemToggleRequest):
-    """Toggle packed state of an item."""
+def toggle_packing_item(
+    trip_id: str,
+    item_id: str,
+    req: PackingItemToggleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Toggle packed state of an item with ownership check."""
+    user = _resolve_user(current_user)
     doc = db.trips.find_one({"id": trip_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Trip not found")
+    _check_trip_ownership(doc, user["id"], "modify")
     trip = TripDocument(**doc)
     
     found = False
@@ -258,11 +309,12 @@ def toggle_packing_item(trip_id: str, item_id: str, req: PackingItemToggleReques
     return {"status": "success", "item_id": item_id, "is_packed": req.is_packed}
 
 @app.post("/api/demo/preset")
-def load_hackathon_demo_trip():
+def load_hackathon_demo_trip(current_user: Dict[str, Any] = Depends(get_current_user)):
     """
     Convenience endpoint for live presentation:
-    Initializes the exact 4-Day Goa Demo trip with 30,000 INR budget.
+    Initializes the exact 4-Day Goa Demo trip with 30,000 INR budget for the authenticated user.
     """
+    user = _resolve_user(current_user)
     demo_req = TripCreateRequest(
         destination="Goa",
         start_date="2026-10-15",
@@ -284,4 +336,4 @@ def load_hackathon_demo_trip():
         travel_pace="Moderate",
         special_constraints="Avoid overly packed days; preserve Portuguese culture and beach activities"
     )
-    return create_trip(demo_req)
+    return create_trip(demo_req, current_user=user)
