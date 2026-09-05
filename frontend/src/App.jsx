@@ -24,7 +24,7 @@ function TravelPlannerContent() {
   const [loading, setLoading] = useState(false);
   const [replanning, setReplanning] = useState(false);
   
-  // Navigation & Modals
+  // Navigation
   const [activeTab, setActiveTab] = useState('itinerary');
   const [replanModalOpen, setReplanModalOpen] = useState(false);
   const [latestReplanResult, setLatestReplanResult] = useState(null);
@@ -175,7 +175,7 @@ function TravelPlannerContent() {
       if (res.ok) {
         setActiveTrip((prev) => ({
           ...prev,
-          packing_checklist: prev.packing_checklist.map((item) =>
+          packing_checklist: prev.packing_checklist.map(item =>
             item.id === itemId ? { ...item, is_packed: isPacked } : item
           )
         }));
@@ -243,7 +243,6 @@ function TravelPlannerContent() {
       
       {/* Sticky Header with User Auth Menu */}
       <Header
-        systemStatus={systemStatus}
         onLoadDemo={loadDemoTrip}
         onOpenNewTrip={() => {
           if (!isAuthenticated) setAuthModalOpen(true);
@@ -258,162 +257,115 @@ function TravelPlannerContent() {
       {/* Main Centered App Container */}
       <main className="app-container">
         
-        {/* Unauthenticated State Hero / Gate */}
-        {!isAuthenticated ? (
-          <section className="hero-card" style={{ textAlign: 'center', padding: '60px 24px' }}>
-            <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+        {/* Active Journey Hero Card */}
+        {activeTrip && (
+          <section className="hero-card">
+            <div className="hero-header">
               
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 14px',
-                borderRadius: 999,
-                background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                color: '#818cf8',
-                fontSize: 12,
-                fontWeight: 700
-              }}>
-                <ShieldCheck style={{ width: 14, height: 14 }} />
-                <span>Production JWT Security Enabled</span>
+              <div className="hero-title-area">
+                <div className="hero-tag">
+                  <span>● Active Journey</span>
+                  <span style={{ color: '#64748b' }}>•</span>
+                  <span>{activeTrip.travelers} Travelers ({activeTrip.travel_style} • {activeTrip.travel_pace} Pace)</span>
+                </div>
+                
+                <h1 className="hero-title">
+                  {activeTrip.title}
+                </h1>
+                
+                <div className="hero-chips">
+                  {activeTrip.interests.map((interest) => (
+                    <span key={interest} className="badge badge-primary">
+                      {interest} • {activeTrip.priority_weights?.[interest] || 'MED'}
+                    </span>
+                  ))}
+                </div>
               </div>
 
-              <h1 style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
-                Adaptive, Constraint-Aware AI Travel Planner
-              </h1>
-
-              <p style={{ fontSize: 15, color: '#94a3b8', lineHeight: 1.6 }}>
-                Sign in to create personalized itineraries, track real-time budgets, and experience
-                explainable AI replanning with persistent, private cloud sessions.
-              </p>
-
-              <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+              {/* View Switcher Pills */}
+              <div className="nav-pills">
                 <button
-                  onClick={() => setAuthModalOpen(true)}
-                  className="btn-primary"
-                  style={{ padding: '14px 28px', fontSize: 15 }}
+                  onClick={() => setActiveTab('itinerary')}
+                  className={`nav-pill-btn ${activeTab === 'itinerary' ? 'active' : ''}`}
                 >
-                  <span>Sign In or Register</span>
-                  <ArrowRight style={{ width: 18, height: 18 }} />
+                  <Calendar style={{ width: 16, height: 16 }} />
+                  <span>Itinerary</span>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('map')}
+                  className={`nav-pill-btn ${activeTab === 'map' ? 'active' : ''}`}
+                >
+                  <Map style={{ width: 16, height: 16 }} />
+                  <span>Map Route</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('packing')}
+                  className={`nav-pill-btn ${activeTab === 'packing' ? 'active' : ''}`}
+                >
+                  <Luggage style={{ width: 16, height: 16 }} />
+                  <span>Packing List</span>
                 </button>
               </div>
 
             </div>
           </section>
-        ) : (
-          <>
-            {/* Active Journey Hero Card */}
-            {activeTrip && (
-              <section className="hero-card">
-                <div className="hero-header">
-                  
-                  <div className="hero-title-area">
-                    <div className="hero-tag">
-                      <span>● Active Journey</span>
-                      <span style={{ color: '#64748b' }}>•</span>
-                      <span>{activeTrip.travelers} Travelers ({activeTrip.travel_style} • {activeTrip.travel_pace} Pace)</span>
-                    </div>
-                    
-                    <h1 className="hero-title">
-                      {activeTrip.title}
-                    </h1>
-                    
-                    <div className="hero-chips">
-                      {activeTrip.interests.map((interest) => (
-                        <span key={interest} className="badge badge-primary">
-                          {interest} • {activeTrip.priority_weights?.[interest] || 'MED'}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* View Switcher Pills */}
-                  <div className="nav-pills">
-                    <button
-                      onClick={() => setActiveTab('itinerary')}
-                      className={`nav-pill-btn ${activeTab === 'itinerary' ? 'active' : ''}`}
-                    >
-                      <Calendar style={{ width: 16, height: 16 }} />
-                      <span>Itinerary</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => setActiveTab('map')}
-                      className={`nav-pill-btn ${activeTab === 'map' ? 'active' : ''}`}
-                    >
-                      <Map style={{ width: 16, height: 16 }} />
-                      <span>Map Route</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab('packing')}
-                      className={`nav-pill-btn ${activeTab === 'packing' ? 'active' : ''}`}
-                    >
-                      <Luggage style={{ width: 16, height: 16 }} />
-                      <span>Packing List</span>
-                    </button>
-                  </div>
-
-                </div>
-              </section>
-            )}
-
-            {/* Section 1: Financial & Deterministic Status Bar */}
-            <section>
-              <div className="section-header">
-                <span className="section-title">Trip Budget & Spending Analytics</span>
-                <span className="section-subtitle">Deterministic Math Engine</span>
-              </div>
-              <BudgetStatusBar
-                budgetAnalysis={budgetAnalysis}
-                currency={activeTrip?.currency || '₹'}
-                onTriggerReplan={handleTriggerReplan}
-                replanning={replanning}
-              />
-            </section>
-
-            {/* Section 2: Trip Health Score Engine Display */}
-            <section>
-              <div className="section-header">
-                <span className="section-title">Trip Health Score Engine</span>
-                <span className="section-subtitle">Continuous Multi-Dimensional Feasibility</span>
-              </div>
-              <HealthScoreCard healthScore={activeTrip?.health_score} />
-            </section>
-
-            {/* Section 3: Dynamic Tab Views */}
-            <section>
-              {activeTrip && (
-                <>
-                  {activeTab === 'itinerary' && (
-                    <ItineraryView
-                      days={activeTrip.days}
-                      currency={activeTrip.currency}
-                      onLogExpense={handleLogExpense}
-                      loading={loading}
-                    />
-                  )}
-
-                  {activeTab === 'map' && (
-                    <InteractiveMap
-                      days={activeTrip.days}
-                      currency={activeTrip.currency}
-                    />
-                  )}
-
-                  {activeTab === 'packing' && (
-                    <PackingChecklist
-                      items={activeTrip.packing_checklist}
-                      onToggleItem={handleTogglePackingItem}
-                      loading={loading}
-                    />
-                  )}
-                </>
-              )}
-            </section>
-          </>
         )}
+
+        {/* Section 1: Financial & Deterministic Status Bar */}
+        <section>
+          <div className="section-header">
+            <span className="section-title">Trip Budget & Spending Analytics</span>
+            <span className="section-subtitle">Deterministic Math Engine</span>
+          </div>
+          <BudgetStatusBar
+            budgetAnalysis={budgetAnalysis}
+            currency={activeTrip?.currency || '₹'}
+            onTriggerReplan={handleTriggerReplan}
+            replanning={replanning}
+          />
+        </section>
+
+        {/* Section 2: Trip Health Score Engine Display */}
+        <section>
+          <div className="section-header">
+            <span className="section-title">Trip Health Score Engine</span>
+            <span className="section-subtitle">Continuous Multi-Dimensional Feasibility</span>
+          </div>
+          <HealthScoreCard healthScore={activeTrip?.health_score} />
+        </section>
+
+        {/* Section 3: Dynamic Tab Views */}
+        <section>
+          {activeTrip && (
+            <>
+              {activeTab === 'itinerary' && (
+                <ItineraryView
+                  days={activeTrip.days}
+                  currency={activeTrip.currency}
+                  onLogExpense={handleLogExpense}
+                  loading={loading}
+                />
+              )}
+
+              {activeTab === 'map' && (
+                <InteractiveMap
+                  days={activeTrip.days}
+                  currency={activeTrip.currency}
+                />
+              )}
+
+              {activeTab === 'packing' && (
+                <PackingChecklist
+                  items={activeTrip.packing_checklist}
+                  onToggleItem={handleTogglePackingItem}
+                  loading={loading}
+                />
+              )}
+            </>
+          )}
+        </section>
 
       </main>
 

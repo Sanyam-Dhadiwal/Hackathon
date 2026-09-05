@@ -19,7 +19,8 @@ class Settings:
     
     # Free Google Gemini API Key from Google AI Studio (https://aistudio.google.com/app/apikey)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    _raw_model: str = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    GEMINI_MODEL: str = "gemini-flash-latest" if ("1.5" in _raw_model or not _raw_model) else _raw_model
     
     # Host & Port
     HOST: str = os.getenv("HOST", "0.0.0.0")

@@ -6,17 +6,17 @@ from datetime import datetime
 import uuid
 
 from backend.config import settings
-from backend.database import db, get_db_status
+from backend.database import get_db, get_db_status, reconnect_db
 from backend.models import (
     TripCreateRequest, TripDocument, ExpenseLogRequest,
     ExpenseRecord, PackingItemToggleRequest, ReplanResult,
     TripHealthScore
 )
+from pydantic import BaseModel
 from backend.services.llm_provider import get_llm_provider
 from backend.services.health_engine import TripHealthScoreEngine
 from backend.services.budget_engine import BudgetEngine
 from backend.services.replanner import AdaptiveReplanner
-from backend.routes.auth import router as auth_router, get_current_user, get_optional_user
 
 logger = logging.getLogger("travel_planner.api")
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +60,37 @@ def _check_trip_ownership(doc: Dict[str, Any], user_id: str, action: str = "acce
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"You do not have permission to {action} this trip"
         )
+
+class MongoConnectRequest(BaseModel):
+    mongodb_uri: str
+
+@app.post("/api/settings/connect-mongodb")
+def connect_mongodb_atlas(req: MongoConnectRequest):
+    """Dynamically connect to MongoDB Atlas cloud."""
+    result = reconnect_db(req.mongodb_uri)
+    if result.get("success"):
+        try:
+            import os, re
+            env_file = os.path.join(os.path.dirname(__file__), ".env")
+            if os.path.exists(env_file):
+                with open(env_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                updated = False
+                new_lines = []
+                for line in lines:
+                    if line.startswith("MONGODB_URI="):
+                        new_lines.append(f"MONGODB_URI={req.mongodb_uri.strip()}\n")
+                        updated = True
+                    else:
+                        new_lines.append(line)
+                if not updated:
+                    new_lines.append(f"\nMONGODB_URI={req.mongodb_uri.strip()}\n")
+                with open(env_file, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                logger.info("Successfully updated MONGODB_URI in backend/.env")
+        except Exception as e:
+            logger.warning(f"Could not persist MONGODB_URI to .env: {e}")
+    return result
 
 @app.get("/api/status")
 def get_system_status():

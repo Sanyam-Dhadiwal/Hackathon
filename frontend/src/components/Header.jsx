@@ -1,21 +1,9 @@
 import React from 'react';
-import { Compass, Sparkles, Database, PlayCircle, PlusCircle, LogOut, User, FolderHeart } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Compass, Sparkles, Database, PlayCircle, PlusCircle } from 'lucide-react';
 
-export default function Header({
-  systemStatus,
-  onLoadDemo,
-  onOpenNewTrip,
-  onOpenMyTrips,
-  onOpenAuth,
-  tripsCount = 0,
-  loading
-}) {
-  const { user, isAuthenticated, logout } = useAuth();
+export default function Header({ systemStatus, onLoadDemo, onOpenNewTrip, loading }) {
   const dbIsCloud = systemStatus?.database?.type?.includes('Atlas');
   const aiIsGemini = systemStatus?.ai_engine?.has_gemini_key;
-
-  const firstName = user?.name ? user.name.split(' ')[0] : 'Traveler';
 
   return (
     <header className="site-header">
@@ -29,7 +17,6 @@ export default function Header({
           <div>
             <div className="brand-title">
               <span>Adaptive AI Travel Planner</span>
-              <span className="brand-badge">Hackathon Demo</span>
             </div>
             <p className="brand-subtitle">
               Constraint-Aware • Continuous Real-Time Replanning • Explainable Intelligence
@@ -37,19 +24,10 @@ export default function Header({
           </div>
         </div>
 
-        {/* Right Actions & User Menu */}
+        {/* Right Actions & Badges */}
         <div className="header-actions">
-          
-          <div className="badge badge-low" style={{ padding: '6px 12px', background: '#121a2d' }}>
-            <Database style={{ width: 14, height: 14, color: '#34d399' }} />
-            <span>{dbIsCloud ? 'MongoDB Atlas' : 'MongoDB Local'}</span>
-          </div>
 
-          <div className="badge badge-low" style={{ padding: '6px 12px', background: '#121a2d' }}>
-            <Sparkles style={{ width: 14, height: 14, color: '#38bdf8' }} />
-            <span>{aiIsGemini ? 'Gemini 2.0 AI' : 'Curated Intelligence'}</span>
-          </div>
-
+          {/* One-Click Hackathon Demo Preset Button */}
           <button
             onClick={onLoadDemo}
             disabled={loading}
@@ -60,11 +38,12 @@ export default function Header({
             <span>Load Demo (Goa)</span>
           </button>
 
+          {/* New Custom Trip */}
           <button
             onClick={onOpenNewTrip}
             className="btn-secondary"
           >
-            <PlusCircle style={{ width: 16, height: 16, color: '#818cf8' }} />
+            <PlusCircle style={{ width: 16, height: 16, color: '#4f46e5' }} />
             <span>New Trip</span>
           </button>
 
