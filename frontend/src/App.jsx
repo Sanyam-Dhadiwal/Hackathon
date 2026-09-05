@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { apiClient } from './services/apiClient';
 import Header from './components/Header';
 import BudgetStatusBar from './components/BudgetStatusBar';
 import HealthScoreCard from './components/HealthScoreCard';
@@ -7,27 +9,30 @@ import ItineraryView from './components/ItineraryView';
 import AdaptiveReplanModal from './components/AdaptiveReplanModal';
 import PackingChecklist from './components/PackingChecklist';
 import NewTripModal from './components/NewTripModal';
+import MyTripsModal from './components/MyTripsModal';
+import AuthModal from './components/AuthModal';
 
-import { Calendar, Map, Luggage } from 'lucide-react';
+import { Calendar, Map, Luggage, Compass, ShieldCheck, ArrowRight } from 'lucide-react';
 
-export default function App() {
+function TravelPlannerContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  const [trips, setTrips] = useState([]);
   const [activeTrip, setActiveTrip] = useState(null);
   const [budgetAnalysis, setBudgetAnalysis] = useState(null);
   const [systemStatus, setSystemStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [replanning, setReplanning] = useState(false);
   
-  // Navigation: 'itinerary' | 'map' | 'packing'
+  // Navigation
   const [activeTab, setActiveTab] = useState('itinerary');
   const [replanModalOpen, setReplanModalOpen] = useState(false);
   const [latestReplanResult, setLatestReplanResult] = useState(null);
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
+  const [myTripsModalOpen, setMyTripsModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchSystemStatus();
-    loadDemoTrip();
-  }, []);
-
+  // 1. Fetch system status
   const fetchSystemStatus = async () => {
     try {
       const res = await fetch('/api/status');
@@ -40,25 +45,10 @@ export default function App() {
     }
   };
 
-  const loadDemoTrip = async () => {
-    setLoading(true);
+  // 2. Load budget analysis for active trip
+  const fetchBudgetAnalysis = useCallback(async (tripId) => {
     try {
-      const res = await fetch('/api/demo/preset', { method: 'POST' });
-      if (res.ok) {
-        const trip = await res.json();
-        setActiveTrip(trip);
-        await fetchBudgetAnalysis(trip.id);
-      }
-    } catch (err) {
-      console.error('Error loading demo trip:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchBudgetAnalysis = async (tripId) => {
-    try {
-      const res = await fetch(`/api/trips/${tripId}/budget`);
+      const res = await apiClient.get(`/api/trips/${tripId}/budget`);
       if (res.ok) {
         const data = await res.json();
         setBudgetAnalysis(data);
@@ -66,25 +56,87 @@ export default function App() {
     } catch (err) {
       console.error('Error fetching budget analysis:', err);
     }
-  };
+  }, []);
+
+  // 3. Load demo trip
+  const loadDemoTrip = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.post('/api/demo/preset');
+      if (res.ok) {
+        const trip = await res.json();
+        setActiveTrip(trip);
+        setTrips((prev) => {
+          const exists = prev.some((t) => t.id === trip.id);
+          return exists ? prev.map((t) => (t.id === trip.id ? trip : t)) : [...prev, trip];
+        });
+        await fetchBudgetAnalysis(trip.id);
+      }
+    } catch (err) {
+      console.error('Error loading demo trip:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchBudgetAnalysis]);
+
+  // 4. Fetch all trips belonging to current authenticated user
+  const fetchUserTrips = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await apiClient.get('/api/trips');
+      if (res.ok) {
+        const data = await res.json();
+        setTrips(data);
+        if (data.length > 0) {
+          setActiveTrip((prev) => {
+            if (prev && data.some((t) => t.id === prev.id)) {
+              return data.find((t) => t.id === prev.id);
+            }
+            return data[data.length - 1];
+          });
+        } else {
+          loadDemoTrip();
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching user trips:', err);
+    }
+  }, [isAuthenticated, loadDemoTrip]);
+
+  useEffect(() => {
+    fetchSystemStatus();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchUserTrips();
+    } else {
+      setTrips([]);
+      setActiveTrip(null);
+      setBudgetAnalysis(null);
+    }
+  }, [isAuthenticated, fetchUserTrips]);
+
+  useEffect(() => {
+    if (activeTrip?.id) {
+      fetchBudgetAnalysis(activeTrip.id);
+    }
+  }, [activeTrip?.id, fetchBudgetAnalysis]);
 
   const handleLogExpense = async (dayNumber, actualAmount) => {
     if (!activeTrip) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/trips/${activeTrip.id}/expenses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          day_number: dayNumber,
-          actual_amount: actualAmount,
-          description: `Day ${dayNumber} actual spend entry`
-        })
+      const res = await apiClient.post(`/api/trips/${activeTrip.id}/expenses`, {
+        day_number: dayNumber,
+        actual_amount: actualAmount,
+        description: `Day ${dayNumber} actual spend entry`
       });
 
       if (res.ok) {
         const data = await res.json();
         setActiveTrip(data.trip);
+        setTrips((prev) => prev.map((t) => (t.id === data.trip.id ? data.trip : t)));
         await fetchBudgetAnalysis(activeTrip.id);
       }
     } catch (err) {
@@ -98,10 +150,11 @@ export default function App() {
     if (!activeTrip) return;
     setReplanning(true);
     try {
-      const res = await fetch(`/api/trips/${activeTrip.id}/replan`, { method: 'POST' });
+      const res = await apiClient.post(`/api/trips/${activeTrip.id}/replan`);
       if (res.ok) {
         const data = await res.json();
         setActiveTrip(data.trip);
+        setTrips((prev) => prev.map((t) => (t.id === data.trip.id ? data.trip : t)));
         setLatestReplanResult(data.replan_result);
         setReplanModalOpen(true);
         await fetchBudgetAnalysis(activeTrip.id);
@@ -116,15 +169,13 @@ export default function App() {
   const handleTogglePackingItem = async (itemId, isPacked) => {
     if (!activeTrip) return;
     try {
-      const res = await fetch(`/api/trips/${activeTrip.id}/packing/${itemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_packed: isPacked })
+      const res = await apiClient.patch(`/api/trips/${activeTrip.id}/packing/${itemId}`, {
+        is_packed: isPacked
       });
       if (res.ok) {
-        setActiveTrip(prev => ({
+        setActiveTrip((prev) => ({
           ...prev,
-          packing_checklist: (prev.packing_checklist || []).map(item =>
+          packing_checklist: prev.packing_checklist.map(item =>
             item.id === itemId ? { ...item, is_packed: isPacked } : item
           )
         }));
@@ -137,14 +188,11 @@ export default function App() {
   const handleCreateTrip = async (reqBody) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/trips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reqBody)
-      });
+      const res = await apiClient.post('/api/trips', reqBody);
       if (res.ok) {
         const trip = await res.json();
         setActiveTrip(trip);
+        setTrips((prev) => [...prev, trip]);
         setNewTripModalOpen(false);
         await fetchBudgetAnalysis(trip.id);
       }
@@ -155,13 +203,54 @@ export default function App() {
     }
   };
 
+  // Loading state while restoring session from HttpOnly cookie
+  if (isLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#080c15',
+        color: '#ffffff',
+        gap: 18
+      }}>
+        <div style={{
+          width: 54,
+          height: 54,
+          borderRadius: 18,
+          background: 'linear-gradient(135deg, #6366f1, #06b6d4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 0 35px rgba(99, 102, 241, 0.4)'
+        }}>
+          <Compass style={{ width: 28, height: 28, color: '#fff' }} />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Adaptive AI Travel Planner</h3>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+            Verifying secure session & environment...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* Sticky Header */}
+      {/* Sticky Header with User Auth Menu */}
       <Header
         onLoadDemo={loadDemoTrip}
-        onOpenNewTrip={() => setNewTripModalOpen(true)}
+        onOpenNewTrip={() => {
+          if (!isAuthenticated) setAuthModalOpen(true);
+          else setNewTripModalOpen(true);
+        }}
+        onOpenMyTrips={() => setMyTripsModalOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
+        tripsCount={trips.length}
         loading={loading || replanning}
       />
 
@@ -175,9 +264,8 @@ export default function App() {
               
               <div className="hero-title-area">
                 <div className="hero-tag">
-                  <span style={{ color: '#059669', fontSize: 12 }}>●</span>
-                  <span>Active Journey</span>
-                  <span style={{ color: '#cbd5e1' }}>•</span>
+                  <span>● Active Journey</span>
+                  <span style={{ color: '#64748b' }}>•</span>
                   <span>{activeTrip.travelers} Travelers ({activeTrip.travel_style} • {activeTrip.travel_pace} Pace)</span>
                 </div>
                 
@@ -188,188 +276,108 @@ export default function App() {
                 <div className="hero-chips">
                   {activeTrip.interests.map((interest) => (
                     <span key={interest} className="badge badge-primary">
-                      {interest} • {activeTrip.priority_weights?.[interest] || 'MED'} Priority
+                      {interest} • {activeTrip.priority_weights?.[interest] || 'MED'}
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* Quick Trip KPI Strip in Hero */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                <div style={{
-                  padding: '10px 16px',
-                  borderRadius: 12,
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12
-                }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748b' }}>Total Budget</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
-                      {activeTrip.currency}{activeTrip.total_budget?.toLocaleString()}
-                    </div>
-                  </div>
-                  <div style={{ width: 1, height: 28, background: '#e2e8f0' }} />
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#64748b' }}>Health Score</div>
-                    <div style={{ 
-                      fontSize: 16, 
-                      fontWeight: 900, 
-                      color: (activeTrip.health_score?.overall_score || 0) >= 85 ? '#059669' : '#d97706' 
-                    }}>
-                      {activeTrip.health_score?.overall_score || 0}/100
-                    </div>
-                  </div>
-                </div>
-
-                {budgetAnalysis?.is_budget_pressure && (
-                  <button
-                    onClick={handleTriggerReplan}
-                    disabled={replanning}
-                    className="btn-replan-pulse"
-                    style={{ padding: '10px 18px', fontSize: 12 }}
-                  >
-                    <span>⚡ {replanning ? 'Replanning...' : 'Replan Budget Pressure'}</span>
-                  </button>
-                )}
-              </div>
-
-            </div>
-
-            {/* Authoritative Single Tab Navigation Bar */}
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 18, marginTop: 4 }}>
-              <div className="main-tab-bar">
+              {/* View Switcher Pills */}
+              <div className="nav-pills">
                 <button
                   onClick={() => setActiveTab('itinerary')}
                   className={`nav-pill-btn ${activeTab === 'itinerary' ? 'active' : ''}`}
                 >
-                <Calendar style={{ width: 16, height: 16 }} />
-                <span>Day-by-Day Schedule</span>
-              </button>
-              
-              <button
-                onClick={() => setActiveTab('map')}
-                className={`nav-pill-btn ${activeTab === 'map' ? 'active' : ''}`}
-                style={{ fontSize: 13, padding: '10px 20px' }}
-              >
-                <Map style={{ width: 16, height: 16 }} />
-                <span>Interactive Route Map</span>
-              </button>
+                  <Calendar style={{ width: 16, height: 16 }} />
+                  <span>Itinerary</span>
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('map')}
+                  className={`nav-pill-btn ${activeTab === 'map' ? 'active' : ''}`}
+                >
+                  <Map style={{ width: 16, height: 16 }} />
+                  <span>Map Route</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('packing')}
-                className={`nav-pill-btn ${activeTab === 'packing' ? 'active' : ''}`}
-                style={{ fontSize: 13, padding: '10px 20px' }}
-              >
-                <Luggage style={{ width: 16, height: 16 }} />
-                <span>Packing Checklist</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('packing')}
+                  className={`nav-pill-btn ${activeTab === 'packing' ? 'active' : ''}`}
+                >
+                  <Luggage style={{ width: 16, height: 16 }} />
+                  <span>Packing List</span>
+                </button>
+              </div>
 
-              <button
-                onClick={() => setActiveTab('analytics')}
-                className={`nav-pill-btn ${activeTab === 'analytics' ? 'active' : ''}`}
-                style={{ fontSize: 13, padding: '10px 20px' }}
-              >
-                <span>📊 Budget & Health Engine</span>
-              </button>
             </div>
-          </div>
-
           </section>
         )}
 
-        {/* Dynamic View Rendering: Each view opens immediately right at the top */}
-        {activeTrip && (
-          <>
-            {/* VIEW 1: DAY-BY-DAY SCHEDULE & EXPENSES */}
-            {activeTab === 'itinerary' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                
-                {/* Budget Pressure Alert Banner directly inside Itinerary view for quick action */}
-                {budgetAnalysis?.is_budget_pressure && (
-                  <div className="alert-banner-danger">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <span style={{ fontSize: 22 }}>⚠️</span>
-                      <div>
-                        <strong style={{ color: '#9f1239', fontSize: 14 }}>Budget Pressure Detected (+{activeTrip.currency}{budgetAnalysis.variance?.toLocaleString()} Over Plan)</strong>
-                        <p style={{ fontSize: 12, color: '#4c0519', marginTop: 2 }}>
-                          Day 1 actual spend exceeded the plan. Remaining planned stops exceed available budget. Replan to restore feasibility.
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleTriggerReplan}
-                      disabled={replanning}
-                      className="btn-replan-pulse"
-                      style={{ padding: '9px 18px', fontSize: 12 }}
-                    >
-                      <span>{replanning ? 'Replanning...' : '⚡ Adaptively Replan Remaining Days'}</span>
-                    </button>
-                  </div>
-                )}
+        {/* Section 1: Financial & Deterministic Status Bar */}
+        <section>
+          <div className="section-header">
+            <span className="section-title">Trip Budget & Spending Analytics</span>
+            <span className="section-subtitle">Deterministic Math Engine</span>
+          </div>
+          <BudgetStatusBar
+            budgetAnalysis={budgetAnalysis}
+            currency={activeTrip?.currency || '₹'}
+            onTriggerReplan={handleTriggerReplan}
+            replanning={replanning}
+          />
+        </section>
 
+        {/* Section 2: Trip Health Score Engine Display */}
+        <section>
+          <div className="section-header">
+            <span className="section-title">Trip Health Score Engine</span>
+            <span className="section-subtitle">Continuous Multi-Dimensional Feasibility</span>
+          </div>
+          <HealthScoreCard healthScore={activeTrip?.health_score} />
+        </section>
+
+        {/* Section 3: Dynamic Tab Views */}
+        <section>
+          {activeTrip && (
+            <>
+              {activeTab === 'itinerary' && (
                 <ItineraryView
                   days={activeTrip.days}
                   currency={activeTrip.currency}
                   onLogExpense={handleLogExpense}
                   loading={loading}
                 />
-              </div>
-            )}
+              )}
 
-            {/* VIEW 2: INTERACTIVE MAP ROUTE DIRECTLY AT TOP */}
-            {activeTab === 'map' && (
-              <InteractiveMap
-                days={activeTrip.days}
-                currency={activeTrip.currency}
-              />
-            )}
+              {activeTab === 'map' && (
+                <InteractiveMap
+                  days={activeTrip.days}
+                  currency={activeTrip.currency}
+                />
+              )}
 
-            {/* VIEW 3: PACKING CHECKLIST DIRECTLY AT TOP */}
-            {activeTab === 'packing' && (
-              <PackingChecklist
-                items={activeTrip.packing_checklist}
-                onToggleItem={handleTogglePackingItem}
-                loading={loading}
-              />
-            )}
-
-            {/* VIEW 4: DEEP BUDGET & HEALTH ENGINE ANALYTICS */}
-            {activeTab === 'analytics' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-                
-                {/* Budget Metrics Bar */}
-                <section>
-                  <div className="section-header">
-                    <span className="section-title">Trip Budget & Spending Analytics</span>
-                    <span className="section-subtitle">Deterministic Calculations</span>
-                  </div>
-                  <BudgetStatusBar
-                    budgetAnalysis={budgetAnalysis}
-                    currency={activeTrip?.currency || '₹'}
-                    onTriggerReplan={handleTriggerReplan}
-                    replanning={replanning}
-                  />
-                </section>
-
-                {/* Health Score Engine */}
-                <section>
-                  <div className="section-header">
-                    <span className="section-title">Trip Health Score Engine</span>
-                    <span className="section-subtitle">Multi-Dimensional Continuous Feasibility</span>
-                  </div>
-                  <HealthScoreCard healthScore={activeTrip?.health_score} />
-                </section>
-
-              </div>
-            )}
-          </>
-        )}
+              {activeTab === 'packing' && (
+                <PackingChecklist
+                  items={activeTrip.packing_checklist}
+                  onToggleItem={handleTogglePackingItem}
+                  loading={loading}
+                />
+              )}
+            </>
+          )}
+        </section>
 
       </main>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={() => {
+          setAuthModalOpen(false);
+          fetchUserTrips();
+        }}
+      />
 
       {/* Adaptive Replanning Diff Modal ("What Changed and Why") */}
       <AdaptiveReplanModal
@@ -387,6 +395,27 @@ export default function App() {
         loading={loading}
       />
 
+      {/* My Trips Switcher Modal */}
+      <MyTripsModal
+        isOpen={myTripsModalOpen}
+        onClose={() => setMyTripsModalOpen(false)}
+        trips={trips}
+        activeTripId={activeTrip?.id}
+        onSelectTrip={(selected) => {
+          setActiveTrip(selected);
+          fetchBudgetAnalysis(selected.id);
+        }}
+        onOpenNewTrip={() => setNewTripModalOpen(true)}
+      />
+
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <TravelPlannerContent />
+    </AuthProvider>
   );
 }

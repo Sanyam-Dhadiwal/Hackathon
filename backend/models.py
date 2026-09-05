@@ -122,6 +122,7 @@ class ReplanResult(BaseModel):
 # Full Trip Document
 class TripDocument(BaseModel):
     id: str
+    user_id: Optional[str] = None
     title: str
     destination: str
     start_date: str
@@ -142,3 +143,39 @@ class TripDocument(BaseModel):
     replan_history: List[ReplanResult] = []
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+
+# ==============================================================================
+# Authentication Schemas
+# ==============================================================================
+class UserRegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=6, max_length=128)
+
+class UserLoginRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+    password: str = Field(..., min_length=1, max_length=128)
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    email_verified: bool = False
+    created_at: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "Bearer"
+    user: UserResponse
+
+class RegisterResponse(BaseModel):
+    message: str
+    email_verified: bool = False
+    user: UserResponse
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+class ResendVerificationRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=255)
+
