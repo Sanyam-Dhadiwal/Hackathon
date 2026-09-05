@@ -1,7 +1,7 @@
 import React from 'react';
 import { Compass, Sparkles, Database, PlayCircle, PlusCircle, ExternalLink } from 'lucide-react';
 
-export default function Header({ systemStatus, onLoadDemo, onOpenNewTrip, onOpenMongoModal, loading }) {
+export default function Header({ systemStatus, onLoadDemo, onOpenNewTrip, loading }) {
   const dbIsCloud = systemStatus?.database?.type?.includes('Atlas');
   const aiIsGemini = systemStatus?.ai_engine?.has_gemini_key;
 
@@ -28,29 +28,22 @@ export default function Header({ systemStatus, onLoadDemo, onOpenNewTrip, onOpen
         {/* Right Actions & Badges */}
         <div className="header-actions">
           
-          {/* MongoDB Atlas Cloud Connection Button */}
-          <button
-            onClick={onOpenMongoModal}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 14px',
-              borderRadius: 10,
-              background: dbIsCloud ? '#ecfdf5' : '#ffffff',
-              border: `1.5px solid ${dbIsCloud ? '#10b981' : '#cbd5e1'}`,
-              color: dbIsCloud ? '#065f46' : '#1e293b',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-              transition: 'all 0.2s ease'
-            }}
-            title="Configure MongoDB Atlas Cloud Connection"
-          >
-            <Database style={{ width: 15, height: 15, color: dbIsCloud ? '#059669' : '#059669' }} />
-            <span style={{ fontWeight: 800 }}>{dbIsCloud ? '🍃 MongoDB Atlas (Live Cloud)' : '🍃 Connect MongoDB Atlas'}</span>
-          </button>
+          {/* MongoDB Database Status Badge */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            borderRadius: 10,
+            background: dbIsCloud ? '#ecfdf5' : '#f8fafc',
+            border: `1px solid ${dbIsCloud ? '#a7f3d0' : '#e2e8f0'}`,
+            fontSize: 12,
+            fontWeight: 700,
+            color: dbIsCloud ? '#065f46' : '#475569'
+          }}>
+            <Database style={{ width: 14, height: 14, color: dbIsCloud ? '#059669' : '#059669' }} />
+            <span>{dbIsCloud ? '🍃 MongoDB Atlas (Cloud)' : '🍃 MongoDB Document Store'}</span>
+          </div>
 
           {/* AI Engine Status Badge */}
           <div style={{

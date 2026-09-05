@@ -7,7 +7,6 @@ import ItineraryView from './components/ItineraryView';
 import AdaptiveReplanModal from './components/AdaptiveReplanModal';
 import PackingChecklist from './components/PackingChecklist';
 import NewTripModal from './components/NewTripModal';
-import MongoModal from './components/MongoModal';
 
 import { Calendar, Map, Luggage } from 'lucide-react';
 
@@ -23,7 +22,6 @@ export default function App() {
   const [replanModalOpen, setReplanModalOpen] = useState(false);
   const [latestReplanResult, setLatestReplanResult] = useState(null);
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
-  const [mongoModalOpen, setMongoModalOpen] = useState(false);
 
   useEffect(() => {
     fetchSystemStatus();
@@ -165,7 +163,6 @@ export default function App() {
         systemStatus={systemStatus}
         onLoadDemo={loadDemoTrip}
         onOpenNewTrip={() => setNewTripModalOpen(true)}
-        onOpenMongoModal={() => setMongoModalOpen(true)}
         loading={loading || replanning}
       />
 
@@ -389,14 +386,6 @@ export default function App() {
         onClose={() => setNewTripModalOpen(false)}
         onCreateTrip={handleCreateTrip}
         loading={loading}
-      />
-
-      {/* MongoDB Atlas Cloud Connection Modal */}
-      <MongoModal
-        isOpen={mongoModalOpen}
-        onClose={() => setMongoModalOpen(false)}
-        currentStatus={systemStatus}
-        onConnected={fetchSystemStatus}
       />
 
     </div>
