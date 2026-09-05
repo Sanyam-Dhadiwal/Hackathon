@@ -1,0 +1,376 @@
+import React, { useState } from 'react';
+import { 
+  Calendar, Clock, MapPin, ChevronDown, ChevronUp, 
+  CheckCircle2, Sparkles, Edit3, ArrowRightLeft
+} from 'lucide-react';
+
+export default function ItineraryView({ 
+  days = [], 
+  currency = '₹', 
+  onLogExpense, 
+  loading 
+}) {
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [expandedExplanations, setExpandedExplanations] = useState({});
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [selectedDayForExpense, setSelectedDayForExpense] = useState(null);
+  const [actualInputAmount, setActualInputAmount] = useState('');
+
+  if (!days || days.length === 0) return null;
+
+  const currentDay = days[activeDayIndex] || days[0];
+
+  const toggleExplanation = (id) => {
+    setExpandedExplanations(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const handleOpenExpenseModal = (day) => {
+    setSelectedDayForExpense(day);
+    setActualInputAmount(day.daily_actual_spending > 0 ? day.daily_actual_spending.toString() : '8000');
+    setExpenseModalOpen(true);
+  };
+
+  const submitExpense = (e) => {
+    e.preventDefault();
+    const amount = parseFloat(actualInputAmount);
+    if (!isNaN(amount) && amount >= 0 && selectedDayForExpense) {
+      onLogExpense(selectedDayForExpense.day_number, amount);
+      setExpenseModalOpen(false);
+    }
+  };
+
+  return (
+    <div className="premium-card">
+      
+      {/* Top Controls: Day Tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 18, marginBottom: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: 8, borderRadius: 12, background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
+            <Calendar style={{ width: 20, height: 20 }} />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>Daily Itinerary & Activity Breakdown</h3>
+            <p style={{ fontSize: 12, color: '#94a3b8' }}>Personalized Schedule • Priority Weighting • Explainability</p>
+          </div>
+        </div>
+
+        {/* Day Selector Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', background: '#090e1a', padding: 5, borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', gap: 6 }}>
+          {days.map((day, idx) => {
+            const isCompleted = day.is_completed || day.daily_actual_spending > 0;
+            const isActive = activeDayIndex === idx;
+            return (
+              <button
+                key={day.day_number}
+                onClick={() => setActiveDayIndex(idx)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  background: isActive ? '#6366f1' : 'transparent',
+                  color: isActive ? '#fff' : '#94a3b8'
+                }}
+              >
+                <span>Day {day.day_number}</span>
+                {isCompleted && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399' }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Active Day Header Banner */}
+      <div style={{ 
+        background: '#0a0f1d', 
+        border: '1px solid rgba(255,255,255,0.08)', 
+        borderRadius: 16, 
+        padding: '18px 22px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        flexWrap: 'wrap', 
+        gap: 16,
+        marginBottom: 22 
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h4 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
+              {currentDay.title}
+            </h4>
+            {currentDay.is_completed ? (
+              <span className="badge badge-success">
+                <CheckCircle2 style={{ width: 13, height: 13 }} /> Completed Day
+              </span>
+            ) : (
+              <span className="badge badge-primary">
+                Planned Future Day
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
+            <span>Date: <strong style={{ color: '#fff' }}>{currentDay.date}</strong></span>
+            <span>•</span>
+            <span>Planned Budget: <strong style={{ color: '#fff' }}>{currency}{currentDay.daily_planned_budget?.toLocaleString()}</strong></span>
+            {currentDay.daily_actual_spending > 0 && (
+              <>
+                <span>•</span>
+                <span>Actual Spent: <strong style={{ color: '#fbbf24' }}>{currency}{currentDay.daily_actual_spending?.toLocaleString()}</strong></span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Record Expense Button */}
+        <button
+          onClick={() => handleOpenExpenseModal(currentDay)}
+          disabled={loading}
+          className="btn-secondary"
+          style={{ fontSize: 12, padding: '9px 16px' }}
+        >
+          <Edit3 style={{ width: 14, height: 14, color: '#818cf8' }} />
+          <span>{currentDay.daily_actual_spending > 0 ? 'Edit Actual Spending' : 'Record Actual Spending'}</span>
+        </button>
+      </div>
+
+      {/* Activity Cards List */}
+      <div>
+        {currentDay.activities.map((act, actIdx) => {
+          const isExpanded = expandedExplanations[act.id];
+          const isReplaced = act.status === 'replaced';
+
+          return (
+            <div 
+              key={act.id} 
+              className={`activity-card ${isReplaced ? 'replaced' : ''}`}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+                
+                {/* Left details */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div style={{ 
+                    width: 32, 
+                    height: 32, 
+                    borderRadius: 10, 
+                    background: 'rgba(99, 102, 241, 0.15)', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)', 
+                    color: '#818cf8', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontWeight: 800, 
+                    fontSize: 13,
+                    flexShrink: 0 
+                  }}>
+                    {actIdx + 1}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <h5 style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                        {act.name}
+                      </h5>
+                      {isReplaced && (
+                        <span className="badge badge-medium">
+                          <ArrowRightLeft style={{ width: 12, height: 12 }} /> Adaptively Replaced
+                        </span>
+                      )}
+                      {act.is_completed && (
+                        <span className="badge badge-success">
+                          ✓ Completed
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#94a3b8', marginTop: 6, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <Clock style={{ width: 13, height: 13 }} />
+                        {act.start_time} - {act.end_time} ({act.duration_hours} hrs)
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <MapPin style={{ width: 13, height: 13 }} />
+                        {act.location_name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Cost & Priority Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: '#34d399' }}>
+                      {currency}{act.estimated_cost?.toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Estimated Cost
+                    </div>
+                  </div>
+
+                  <span className={`badge ${
+                    act.priority === 'HIGH' ? 'badge-high' : act.priority === 'MEDIUM' ? 'badge-medium' : 'badge-low'
+                  }`}>
+                    {act.priority} PRIORITY
+                  </span>
+
+                  <button
+                    onClick={() => toggleExplanation(act.id)}
+                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 6 }}
+                    title="Why Recommended"
+                  >
+                    {isExpanded ? <ChevronUp style={{ width: 16, height: 16 }} /> : <ChevronDown style={{ width: 16, height: 16 }} />}
+                  </button>
+                </div>
+
+              </div>
+
+              {/* Expandable Explanation Details */}
+              {isExpanded && (
+                <div style={{ 
+                  marginTop: 14, 
+                  paddingTop: 14, 
+                  borderTop: '1px solid rgba(255,255,255,0.08)', 
+                  background: '#080d19', 
+                  borderRadius: 12, 
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#818cf8', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
+                    <Sparkles style={{ width: 13, height: 13 }} />
+                    <span>Why Recommended & Constraint Feasibility:</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.5 }}>
+                    {act.explanation}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                    <span>Preference Match: <strong style={{ color: '#818cf8' }}>{act.preference_match}</strong></span>
+                    <span>•</span>
+                    <span>Category: <strong style={{ color: '#fff' }}>{act.category}</strong></span>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Log Expense Modal Dialog */}
+      {expenseModalOpen && selectedDayForExpense && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1000,
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20
+        }}>
+          <div style={{
+            maxWidth: 440,
+            width: '100%',
+            background: '#0e1526',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: 20,
+            padding: 28,
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18
+          }}>
+            
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 12 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+                Record Actual Spending: Day {selectedDayForExpense.day_number}
+              </h3>
+              <button
+                onClick={() => setExpenseModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 22, cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.4 }}>
+              Enter the actual amount spent on Day {selectedDayForExpense.day_number}. 
+              The system will calculate variance and trigger adaptive replanning if needed.
+            </p>
+
+            <form onSubmit={submitExpense} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>
+                  Original Planned Budget for Day {selectedDayForExpense.day_number}
+                </label>
+                <div style={{ padding: '10px 14px', borderRadius: 10, background: '#090e1a', border: '1px solid rgba(255,255,255,0.08)', fontSize: 14, fontFamily: 'monospace', color: '#cbd5e1' }}>
+                  {currency}{selectedDayForExpense.daily_planned_budget?.toLocaleString()}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 6 }}>
+                  Actual Spending Amount ({currency})
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  required
+                  value={actualInputAmount}
+                  onChange={(e) => setActualInputAmount(e.target.value)}
+                  placeholder="e.g. 8000"
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    background: '#090e1a',
+                    border: '1px solid #6366f1',
+                    color: '#fff',
+                    fontSize: 18,
+                    fontWeight: 800,
+                    fontFamily: 'monospace',
+                    outline: 'none'
+                  }}
+                />
+                <p style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                  Tip for demo: Enter <strong style={{ color: '#fbbf24' }}>8000</strong> to trigger the budget variance (+₹3,000).
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <button
+                  type="button"
+                  onClick={() => setExpenseModalOpen(false)}
+                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary"
+                >
+                  Update Trip & Evaluate
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
